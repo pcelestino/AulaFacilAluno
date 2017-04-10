@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Aula Fácil Aluno</string>
+    <string name="professors_list">Lista de professores</string>
+    <string name="student_name_input_label">Olá estudante, por favor insira o seu nome.</string>
+    <string name="studen_name_input_text">Digite o seu nome aqui</string>
+    <string name="send">Enviar</string>
+    <string name="please_insert_your_name">Por favor, insira o seu nome</string>
+    <string name="title_activity_main">Questionário</string>
+</resources>
