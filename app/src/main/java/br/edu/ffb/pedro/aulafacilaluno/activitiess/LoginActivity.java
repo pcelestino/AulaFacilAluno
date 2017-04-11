@@ -1,5 +1,6 @@
 package br.edu.ffb.pedro.aulafacilaluno.activitiess;
 
+import android.annotation.SuppressLint;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -49,6 +50,7 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
     private ProfessorsListAdapter professorsListAdapter;
 
     private ProgressDialog connectingDialog;
+    private boolean canStartElection = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,6 +59,7 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
         showStudentInputNameDialog();
     }
 
+    @SuppressLint("InflateParams")
     private void showStudentInputNameDialog() {
         LayoutInflater layoutInflaterAndroid = LayoutInflater.from(LoginActivity.this);
         View mView = layoutInflaterAndroid.inflate(R.layout.student_input_name_dialog_box, null);
@@ -137,13 +140,11 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
 
     @Override
     public void onDataReceived(Object data) {
-        // TODO: Tratar Bully Election e Device Info na biblioteca EasyP2P
+
         Log.d(TAG, "Received network data.");
-        Payload payload = null;
+        Payload payload;
         try {
             payload = LoganSquare.parse((String) data, Payload.class);
-
-
             switch (payload.type) {
 
                 // QUIZ
@@ -157,36 +158,51 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
                     BullyElection bullyElection = LoganSquare.parse((String) data, BullyElection.class);
                     switch (bullyElection.message) {
                         case BullyElection.START_ELECTION:
-                            Log.d(TAG, "INICIANDO ELEIÇÃO");
-                            Toast.makeText(LoginActivity.this, "INICIANDO ELEIÇÃO", Toast.LENGTH_LONG).show();
+                            if (canStartElection) {
 
-                            Log.d(TAG, "RESPONDENDO AO PEDIDO DE ELEIÇÃO");
-                            network.repondElection(bullyElection.device,
-                                    new EasyP2pCallback() {
-                                        @Override
-                                        public void call() {
-                                            Log.d(TAG, "RESPOSTA ENVIADA COM SUCESSO");
-                                            network.startElection(null, null);
+                                Log.d(TAG, "INICIANDO ELEIÇÃO");
+                                Toast.makeText(LoginActivity.this, "INICIANDO ELEIÇÃO", Toast.LENGTH_LONG).show();
+
+                                Log.d(TAG, "RESPONDENDO AO PEDIDO DE ELEIÇÃO");
+                                network.repondElection(bullyElection.device,
+                                        new EasyP2pCallback() {
+                                            @Override
+                                            public void call() {
+                                                Log.d(TAG, "RESPOSTA ENVIADA COM SUCESSO");
+
+                                                // Checa se é o líder
+                                                if (network.isLeader()) {
+                                                    network.informLeader(null, null);
+                                                } else {
+                                                    network.startElection(null, null);
+                                                }
+                                            }
+                                        }, new EasyP2pCallback() {
+                                            @Override
+                                            public void call() {
+                                                Log.d(TAG, "FALHA AO ENVIAR A RESPOSTA");
+                                            }
                                         }
-                                    }, new EasyP2pCallback() {
-                                        @Override
-                                        public void call() {
-                                            Log.d(TAG, "FALHA AO ENVIAR A RESPOSTA");
-                                        }
-                                    }
-                            );
+                                );
+                            }
                             break;
                         case BullyElection.RESPOND_OK:
+                            canStartElection = false;
                             break;
                         case BullyElection.INFORM_LEADER:
+                            network.updateLeaderReference(bullyElection.device, new EasyP2pCallback() {
+                                @Override
+                                public void call() {
+                                    canStartElection = true;
+                                }
+                            });
                             break;
                     }
                     break;
 
                 // DEVICE INFO
                 case DeviceInfo.TYPE:
-                    //DeviceInfo deviceInfo = LoganSquare.parse((String) data, DeviceInfo.class);
-                    DeviceInfo deviceInfo = (DeviceInfo) payload;
+                    DeviceInfo deviceInfo = LoganSquare.parse((String) data, DeviceInfo.class);
                     switch (deviceInfo.message) {
                         case DeviceInfo.INFORM_DEVICE:
                             Log.d(TAG, "Informando device");
