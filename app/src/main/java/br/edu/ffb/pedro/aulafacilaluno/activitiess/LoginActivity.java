@@ -16,6 +16,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import com.arasthel.asyncjob.AsyncJob;
 import com.bluelinelabs.logansquare.LoganSquare;
 import com.ffb.pedrosilveira.easyp2p.EasyP2p;
 import com.ffb.pedrosilveira.easyp2p.EasyP2pDataReceiver;
@@ -50,7 +51,7 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
     private ProfessorsListAdapter professorsListAdapter;
 
     private ProgressDialog connectingDialog;
-    private boolean canStartElection = true;
+    private boolean hasElectionResponse = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -147,7 +148,7 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
             payload = LoganSquare.parse((String) data, Payload.class);
             switch (payload.type) {
 
-                // QUIZ
+                // O Líder receberá mensagens do tipo QUIZ
                 case Quiz.TYPE:
                     final Quiz newQuiz = LoganSquare.parse((String) data, Quiz.class);
                     Log.d(TAG, "MENSAGEM GERAL: " + String.valueOf(newQuiz.isLeader));  //See you on the other side!
@@ -158,7 +159,7 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
                     BullyElection bullyElection = LoganSquare.parse((String) data, BullyElection.class);
                     switch (bullyElection.message) {
                         case BullyElection.START_ELECTION:
-                            if (canStartElection) {
+                            if (!hasElectionResponse) {
 
                                 Log.d(TAG, "INICIANDO ELEIÇÃO");
                                 Toast.makeText(LoginActivity.this, "INICIANDO ELEIÇÃO", Toast.LENGTH_LONG).show();
@@ -169,12 +170,44 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
                                             @Override
                                             public void call() {
                                                 Log.d(TAG, "RESPOSTA ENVIADA COM SUCESSO");
+                                                Log.d(TAG, "DEVICE ID: " + network.thisDevice.id);
+                                                Log.d(TAG, "DEVICE NAME: " + network.thisDevice.readableName);
 
                                                 // Checa se é o líder
                                                 if (network.isLeader()) {
+                                                    Log.d(TAG, "INFORMANDO LÍDER: " + network.thisDevice.readableName);
                                                     network.informLeader(null, null);
                                                 } else {
-                                                    network.startElection(null, null);
+                                                    network.startElection(null,
+                                                            new EasyP2pDeviceCallback() {
+                                                                @Override
+                                                                public void call(final EasyP2pDevice device) {
+                                                                    Log.d(TAG, "ERRO AO ENVIAR O PEDIDO DE ELEIÇÃO");
+
+                                                                    // Se chegar nesse ponto significa que iniciou-se uma tentativa
+                                                                    // de se conectar ao dispotivo de maior id, porém houve uma falha
+                                                                    // de conexão, então o dispositivo aguardará um tempo definido em BuyllyElection
+                                                                    // caso haja algum retorno a variável hasElectionResponse e não será efetuado nenhum
+                                                                    // procedimento, caso contrário, esse dispositivo irá se declarar líder
+                                                                    AsyncJob.doInBackground(new AsyncJob.OnBackgroundJob() {
+                                                                        @Override
+                                                                        public void doOnBackground() {
+                                                                            try {
+                                                                                Thread.sleep(BullyElection.TIMEOUT);
+                                                                                // Se a variável não for alterada, significa que não houve resposta
+                                                                                if (!hasElectionResponse) {
+                                                                                    Log.d(TAG, "REMOVENDO A REFERÊNCIA DO DISPOSITIVO: " + device.readableName);
+                                                                                    network.removeDeviceReference(device, null);
+                                                                                    network.informRemoveDeviceReference(device, null);
+                                                                                    network.informLeader(null, null);
+                                                                                }
+                                                                            } catch (InterruptedException e) {
+                                                                                e.printStackTrace();
+                                                                            }
+                                                                        }
+                                                                    });
+                                                                }
+                                                            });
                                                 }
                                             }
                                         }, new EasyP2pCallback() {
@@ -187,13 +220,16 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
                             }
                             break;
                         case BullyElection.RESPOND_OK:
-                            canStartElection = false;
+                            hasElectionResponse = true;
                             break;
                         case BullyElection.INFORM_LEADER:
-                            network.updateLeaderReference(bullyElection.device, new EasyP2pCallback() {
+                            final EasyP2pDevice leader = bullyElection.device;
+                            network.updateLeaderReference(leader, new EasyP2pCallback() {
                                 @Override
                                 public void call() {
-                                    canStartElection = true;
+                                    // O host passa a ser o líder
+                                    network.registeredLeader = leader;
+                                    hasElectionResponse = false;
                                 }
                             });
                             break;
@@ -219,7 +255,6 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
     private void goMainActivity() {
         connectingDialog.hide();
         startActivity(new Intent(LoginActivity.this, MainActivity.class));
-        finish();
     }
 
     @Override
