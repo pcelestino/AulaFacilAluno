@@ -1,4 +1,4 @@
-package br.edu.ffb.pedro.aulafacilaluno.activitiess;
+package br.edu.ffb.pedro.aulafacilaluno.activities;
 
 import android.content.DialogInterface;
 import android.os.Bundle;
@@ -14,7 +14,10 @@ import android.view.View;
 import com.ffb.pedrosilveira.easyp2p.callbacks.EasyP2pCallback;
 import com.ffb.pedrosilveira.easyp2p.payloads.bully.BullyElection;
 
+import org.greenrobot.eventbus.EventBus;
+
 import br.edu.ffb.pedro.aulafacilaluno.R;
+import br.edu.ffb.pedro.aulafacilaluno.events.MessageEvent;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -60,21 +63,24 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.logout:
-                AlertDialog alerta = new AlertDialog.Builder(MainActivity.this)
+                AlertDialog alertDialog = new AlertDialog.Builder(MainActivity.this)
                         .setTitle("Deseja realmente sair?")
                         .setPositiveButton("Sim", new DialogInterface.OnClickListener() {
                             public void onClick(DialogInterface arg0, int arg1) {
-                                LoginActivity.network.unregisterClient(new EasyP2pCallback() {
-                                    @Override
-                                    public void call() {
-                                        finish();
-                                    }
-                                }, null, false);
+                                if (LoginActivity.network.thisDevice.isRegistered) {
+                                    LoginActivity.network.unregisterClient(new EasyP2pCallback() {
+                                        @Override
+                                        public void call() {
+                                            EventBus.getDefault().post(new MessageEvent(MessageEvent.EXIT_APP));
+                                            finish();
+                                        }
+                                    }, null, false);
+                                }
                             }
                         })
                         .setNegativeButton("Não", null)
                         .create();
-                alerta.show();
+                alertDialog.show();
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
@@ -84,8 +90,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        LoginActivity.network.unregisterClient(null, null, false);
+        if (LoginActivity.network.thisDevice.isRegistered) {
+            LoginActivity.network.unregisterClient(null, null, false);
+        }
     }
-
-
 }

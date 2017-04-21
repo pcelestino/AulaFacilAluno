@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="br.edu.ffb.pedro.aulafacilaluno.activitiess.MainActivity">
+    tools:context="br.edu.ffb.pedro.aulafacilaluno.activities.MainActivity">
 
     <android.support.design.widget.AppBarLayout
         android:layout_width="match_parent"

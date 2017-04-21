@@ -6,4 +6,6 @@
     <string name="send">Enviar</string>
     <string name="please_insert_your_name">Por favor, insira o seu nome</string>
     <string name="title_activity_main">Questionário</string>
+    <string name="waiting_for_professors">Aguardando Professores</string>
+    <string name="logout">Sair</string>
 </resources>

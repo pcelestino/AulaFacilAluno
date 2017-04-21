@@ -6,18 +6,13 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
-import com.ffb.pedrosilveira.easyp2p.EasyP2p;
 import com.ffb.pedrosilveira.easyp2p.EasyP2pDevice;
 
 import java.util.ArrayList;
 
 import br.edu.ffb.pedro.aulafacilaluno.R;
-import br.edu.ffb.pedro.aulafacilaluno.activitiess.LoginActivity;
+import br.edu.ffb.pedro.aulafacilaluno.activities.LoginActivity;
 import br.edu.ffb.pedro.aulafacilaluno.adapters.holders.ProfessorsListViewHolder;
-
-/**
- * Created by Pedro on 03/04/2017.
- */
 
 public class ProfessorsListAdapter extends RecyclerView.Adapter {
 
@@ -48,7 +43,6 @@ public class ProfessorsListAdapter extends RecyclerView.Adapter {
             }
         });
     }
-
 
 
     @Override

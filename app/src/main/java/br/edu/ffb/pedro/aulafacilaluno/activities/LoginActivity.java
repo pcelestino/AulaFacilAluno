@@ -1,19 +1,24 @@
-package br.edu.ffb.pedro.aulafacilaluno.activitiess;
+package br.edu.ffb.pedro.aulafacilaluno.activities;
 
 import android.annotation.SuppressLint;
 import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import com.arasthel.asyncjob.AsyncJob;
@@ -29,11 +34,16 @@ import com.ffb.pedrosilveira.easyp2p.payloads.Payload;
 import com.ffb.pedrosilveira.easyp2p.payloads.bully.BullyElection;
 import com.ffb.pedrosilveira.easyp2p.payloads.device.DeviceInfo;
 
+import org.greenrobot.eventbus.EventBus;
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
+
 import java.io.IOException;
 
 import br.edu.ffb.pedro.aulafacilaluno.R;
 import br.edu.ffb.pedro.aulafacilaluno.Utils;
 import br.edu.ffb.pedro.aulafacilaluno.adapters.ProfessorsListAdapter;
+import br.edu.ffb.pedro.aulafacilaluno.events.MessageEvent;
 import br.edu.ffb.pedro.aulafacilaluno.listeners.OnProfessorsListItemClickListener;
 import br.edu.ffb.pedro.aulafacilaluno.payload.Quiz;
 
@@ -41,13 +51,14 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
         OnProfessorsListItemClickListener {
 
     private static final String TAG = LoginActivity.class.getSimpleName();
+    private Toolbar toolbar;
+    private LinearLayout professorsContainer;
     private String studentInputName = "";
 
-    private EasyP2pDataReceiver easyP2pDataReceiver;
-    private EasyP2pServiceData easyP2pServiceData;
     public static EasyP2p network;
 
     private RecyclerView professorsList;
+    private View mEmptyView;
     private ProfessorsListAdapter professorsListAdapter;
 
     private ProgressDialog connectingDialog;
@@ -57,7 +68,47 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
+        toolbar = (Toolbar) findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        toolbar.setVisibility(View.GONE);
+        professorsContainer = (LinearLayout) findViewById(R.id.professorsContainer);
+        professorsList = (RecyclerView) findViewById(R.id.professorsList);
+        mEmptyView = findViewById(R.id.emptyView);
         showStudentInputNameDialog();
+        EventBus.getDefault().register(LoginActivity.this);
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_main, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.logout:
+                AlertDialog alertDialog = new AlertDialog.Builder(LoginActivity.this)
+                        .setTitle("Deseja realmente sair?")
+                        .setPositiveButton("Sim", new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface arg0, int arg1) {
+                                if (LoginActivity.network.thisDevice.isRegistered) {
+                                    LoginActivity.network.unregisterClient(new EasyP2pCallback() {
+                                        @Override
+                                        public void call() {
+                                            finish();
+                                        }
+                                    }, null, false);
+                                }
+                            }
+                        })
+                        .setNegativeButton("Não", null)
+                        .create();
+                alertDialog.show();
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
     }
 
     @SuppressLint("InflateParams")
@@ -90,7 +141,9 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
                             Toast.makeText(LoginActivity.this, R.string.please_insert_your_name,
                                     Toast.LENGTH_SHORT).show();
                         } else {
-                            setupEasyP2P(studentInputName);
+                            toolbar.setVisibility(View.VISIBLE);
+                            professorsContainer.setBackgroundColor(ContextCompat.getColor(LoginActivity.this, R.color.transparent));
+                            setupEasyP2P();
                             alertDialogAndroid.dismiss();
                         }
                     }
@@ -101,9 +154,17 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
         alertDialogAndroid.show();
     }
 
-    private void setupEasyP2P(String studentName) {
-        easyP2pDataReceiver = new EasyP2pDataReceiver(LoginActivity.this, LoginActivity.this);
-        easyP2pServiceData = new EasyP2pServiceData("AulaFacilProfessor", 50489, studentName);
+    @SuppressWarnings("unused")
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onMessageEvent(MessageEvent event) {
+        if (event.message.equals(MessageEvent.EXIT_APP)) {
+            finish();
+        }
+    }
+
+    private void setupEasyP2P() {
+        EasyP2pDataReceiver easyP2pDataReceiver = new EasyP2pDataReceiver(LoginActivity.this, LoginActivity.this);
+        EasyP2pServiceData easyP2pServiceData = new EasyP2pServiceData("AulaFacilProfessor", 50489, studentInputName);
 
         network = new EasyP2p(easyP2pDataReceiver, easyP2pServiceData, new EasyP2pCallback() {
             @Override
@@ -124,19 +185,37 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
                 professorsListAdapter.notifyDataSetChanged();
             }
         }, true);
-
         setupProfessorsList();
     }
 
+    private void checkAdapterIsEmpty() {
+        if (professorsListAdapter.getItemCount() == 0) {
+            mEmptyView.setVisibility(View.VISIBLE);
+            professorsList.setVisibility(View.GONE);
+        } else {
+            mEmptyView.setVisibility(View.GONE);
+            professorsList.setVisibility(View.VISIBLE);
+        }
+    }
+
     private void setupProfessorsList() {
-        professorsList = (RecyclerView) findViewById(R.id.professorsList);
         professorsListAdapter = new ProfessorsListAdapter(network.foundDevices, LoginActivity.this);
-        professorsList.setAdapter(professorsListAdapter);
+
+        professorsListAdapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
+            @Override
+            public void onChanged() {
+                super.onChanged();
+                checkAdapterIsEmpty();
+            }
+        });
 
         LinearLayoutManager professorsListLayoutManager = new LinearLayoutManager(LoginActivity.this,
                 LinearLayoutManager.VERTICAL, false);
 
         professorsList.setLayoutManager(professorsListLayoutManager);
+        professorsList.setHasFixedSize(true);
+        professorsList.setAdapter(professorsListAdapter);
+        checkAdapterIsEmpty();
     }
 
     @Override
@@ -278,5 +357,14 @@ public class LoginActivity extends AppCompatActivity implements EasyP2pDataCallb
                         Utils.showToastShort(LoginActivity.this, "Falha ao se registrar no servidor!");
                     }
                 });
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        EventBus.getDefault().unregister(LoginActivity.this);
+        if (LoginActivity.network.thisDevice.isRegistered) {
+            LoginActivity.network.unregisterClient(null, null, false);
+        }
     }
 }
